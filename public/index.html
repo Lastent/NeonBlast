@@ -109,6 +109,11 @@
   <div class="sub">Juega solo contra los enemigos, o crea una sala y comparte el código con tus amigos.</div>
   <div class="card">
     <input class="txt" id="nameInput" maxlength="12" placeholder="Tu nombre" />
+    <div class="seg" id="livesSeg" title="Vidas para el modo solo">
+      <div class="opt" data-lives="3">3 vidas<small>desafío</small></div>
+      <div class="opt on" data-lives="5">5 vidas<small>recomendado</small></div>
+      <div class="opt" data-lives="9">9 vidas<small>relajado</small></div>
+    </div>
     <button class="btn lime" id="soloBtn">Jugar Solo</button>
     <div class="note" style="margin-top:-4px">— o multijugador —</div>
     <div class="seg" id="modeSeg">
@@ -208,6 +213,7 @@ const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
 function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
 const GFX = { level: lsGet('neonblast.gfx') || 'alto' };
+let soloLives = parseInt(lsGet('neonblast.solo.lives')||'5',10); if(![3,5,9].includes(soloLives)) soloLives=5;
 const GFXFLAGS = { glow:true, shadow:true, vignette:true, particles:true, gradients:true, exitRings:3 };
 function applyGfx(){
   const lvl=GFX.level;
@@ -323,7 +329,10 @@ if(isTouch){ bindHold($('dU'),'up'); bindHold($('dD'),'down'); bindHold($('dL'),
 // lobby buttons
 [...$('modeSeg').children].forEach(o=>o.addEventListener('click',()=>{ selMode=o.dataset.mode; [...$('modeSeg').children].forEach(x=>x.classList.toggle('on',x===o)); }));
 $('createBtn').addEventListener('click',()=>{ $('connErr').textContent=''; send({t:'create', name:$('nameInput').value||'Jugador', mode:selMode}); });
-$('soloBtn').addEventListener('click',()=>{ $('connErr').textContent=''; soloPending=true; send({t:'create', name:$('nameInput').value||'Jugador', mode:'coop'}); });
+$('soloBtn').addEventListener('click',()=>{ $('connErr').textContent=''; soloPending=true; send({t:'create', name:$('nameInput').value||'Jugador', mode:'coop', lives:soloLives}); });
+[...$('livesSeg').children].forEach(o=>o.addEventListener('click',()=>{ soloLives=parseInt(o.dataset.lives,10); lsSet('neonblast.solo.lives', String(soloLives)); [...$('livesSeg').children].forEach(x=>x.classList.toggle('on',x===o)); }));
+// reflejar la elección guardada al cargar
+[...$('livesSeg').children].forEach(x=>x.classList.toggle('on', parseInt(x.dataset.lives,10)===soloLives));
 $('joinBtn').addEventListener('click',()=>{ $('connErr').textContent=''; const c=$('codeInput').value.trim().toUpperCase(); if(c.length===4) send({t:'join', code:c, name:$('nameInput').value||'Jugador'}); else $('connErr').textContent='Escribe un código de 4 letras.'; });
 
 // settings (calidad gráfica)

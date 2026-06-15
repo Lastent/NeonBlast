@@ -29,7 +29,9 @@ class Sim {
     this.bombSeq = 1;
     this.message = '';            // short banner for clients
     this.winnerId = null;
+    this.startingLives = 3;       // vidas iniciales por jugador (configurable en solo)
   }
+  setStartingLives(n){ n = Number(n); if(!Number.isFinite(n)) return; this.startingLives = Math.max(1, Math.min(99, Math.floor(n))); }
 
   // ---- players ----
   addPlayer(id, name){
@@ -39,7 +41,7 @@ class Sim {
     const p = {
       id, name: String(name||('P'+(idx+1))).slice(0,12), color: COLORS[idx], slot: idx,
       px:0, py:0, h:TILE*0.36, dir:'down', alive:false, out:false,
-      lives:3, speed:3.0*TILE, maxBombs:1, range:1, bombType:'normal', canKick:false,
+      lives:this.startingLives, speed:3.0*TILE, maxBombs:1, range:1, bombType:'normal', canKick:false,
       invuln:0, walkT:0, score:0, wins:0,
       keys:{up:false,down:false,left:false,right:false}, last:null,
       queued:[]                   // pending 'bomb' / 'detonate' actions
@@ -68,7 +70,7 @@ class Sim {
   setMode(m){ if(m==='coop'||m==='versus') this.mode = m; }
   startMatch(){
     this.level = 1; this.round = 1; this.winnerId = null;
-    for(const p of this.players.values()){ p.score=0; p.wins=0; p.bombType='normal'; p.canKick=false; p.maxBombs=1; p.range=1; p.speed=3.0*TILE; }
+    for(const p of this.players.values()){ p.score=0; p.wins=0; p.lives=this.startingLives; p.bombType='normal'; p.canKick=false; p.maxBombs=1; p.range=1; p.speed=3.0*TILE; }
     this.buildLevel();
     this.beginCountdown(this.mode==='coop' ? ('NIVEL '+this.level) : ('RONDA '+this.round));
   }

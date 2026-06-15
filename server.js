@@ -93,6 +93,7 @@ wss.on('connection', (ws) => {
       case 'create': {
         if(room) leaveRoom(ws);
         const r = makeRoom(m.mode);
+        if(typeof m.lives === 'number') r.sim.setStartingLives(m.lives);
         rooms.set(r.code, r);
         r.hostId = ws._id;
         ws._room = r.code;
