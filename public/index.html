@@ -372,8 +372,9 @@ function renderSlots(){
     let info='';
     if(data){
       const when = data.ts ? new Date(data.ts).toLocaleDateString() : '';
+      const btLabel = data.bombType==='remote'?' · 💥REM':data.bombType==='pierce'?' · ⚡PIER':'';
       info = '<div class="ttl">'+escapeHtml(data.name||'Jugador')+'</div>'+
-             '<div class="meta">Nivel '+data.level+' · ♥'+data.lives+' · 💣'+data.maxBombs+' · 🔥'+data.range+(data.canKick?' · 👟':'')+' · '+(data.score|0).toLocaleString()+' pts'+(when?' · '+when:'')+'</div>';
+             '<div class="meta">Nivel '+data.level+' · ♥'+data.lives+' · 💣'+data.maxBombs+' · 🔥'+data.range+(data.canKick?' · 👟':'')+btLabel+' · '+(data.score|0).toLocaleString()+' pts'+(when?' · '+when:'')+'</div>';
     } else {
       info = '<div class="ttl">Ranura vacía</div><div class="meta">Toca «Nueva» para empezar.</div>';
     }
@@ -402,13 +403,13 @@ function autoSaveSolo(snap){
   if(snap.status!=='countdown' || !snap.level || snap.level===_lastSavedLevel) return;
   const me = snap.players[0]; if(!me) return;
   setSlot(activeSlot, { ts:Date.now(), name:me.name, level:snap.level, lives:Math.max(1,me.lives|0),
-    maxBombs:me.maxBombs|0, range:me.range|0, canKick:!!me.canKick, score:me.score|0 });
+    maxBombs:me.maxBombs|0, range:me.range|0, canKick:!!me.canKick, bombType:me.bombType||'normal', score:me.score|0 });
   _lastSavedLevel = snap.level;
 }
 function startSoloFromSlot(slotIdx, data){
   $('connErr').textContent=''; activeSlot=slotIdx; _lastSavedLevel=0; soloPending=true;
   const msg={ t:'create', name:$('nameInput').value||'Jugador', mode:'coop', lives:(data?data.lives:soloLives) };
-  if(data){ msg.solo={ level:data.level, lives:data.lives, maxBombs:data.maxBombs, range:data.range, canKick:!!data.canKick, score:data.score|0 }; }
+  if(data){ msg.solo={ level:data.level, lives:data.lives, maxBombs:data.maxBombs, range:data.range, canKick:!!data.canKick, bombType:data.bombType||'normal', score:data.score|0 }; }
   send(msg);
   $('soloPanel').classList.add('hidden');
 }

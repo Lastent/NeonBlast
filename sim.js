@@ -42,6 +42,7 @@ class Sim {
       maxBombs: clamp(s.maxBombs, 1, 8,  1),
       range:    clamp(s.range,    1, 8,  1),
       canKick:  !!s.canKick,
+      bombType: (s.bombType==='remote'||s.bombType==='pierce') ? s.bombType : 'normal',
       score:    clamp(s.score,    0, 99999999, 0)
     };
   }
@@ -88,7 +89,7 @@ class Sim {
     if(this.mode==='coop' && this.soloOverride && this.players.size===1){
       const o = this.soloOverride; this.level = o.level;
       const p = this.players.values().next().value;
-      p.lives = o.lives; p.maxBombs = o.maxBombs; p.range = o.range; p.canKick = o.canKick; p.score = o.score;
+      p.lives = o.lives; p.maxBombs = o.maxBombs; p.range = o.range; p.canKick = o.canKick; p.bombType = o.bombType; p.score = o.score;
     }
     this.buildLevel();
     this.beginCountdown(this.mode==='coop' ? ('NIVEL '+this.level) : ('RONDA '+this.round));
@@ -168,11 +169,11 @@ class Sim {
         p.alive=true; p.out=false; p.lives=1;
         p.bombType='normal'; p.canKick=false; p.maxBombs=1; p.range=2; p.speed=3.2*TILE; // versus: a livelier baseline
       } else {
-        // coop: revive everyone for a fresh level; keep upgrades unless full match reset
+        // coop: revive everyone for a fresh level; keep upgrades (incluyendo bombType) entre niveles
         if(fullReset && this.status==='lobby'){ /* handled in startMatch */ }
         p.alive=true; p.out=false;
         if(p.lives<=0) p.lives=1;  // revive out players on new level with 1 life
-        p.bombType='normal';       // bomb type resets each level start (matches single-player death rule)
+        // bombType se conserva al cambiar de nivel; solo se pierde al morir (ver respawn)
       }
     });
   }
