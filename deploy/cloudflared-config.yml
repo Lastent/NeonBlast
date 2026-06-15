@@ -1,0 +1,39 @@
+tunnel: 5c84c871-13d0-4e3d-af6d-3ed789ff84e3
+credentials-file: /home/roman/.cloudflared/5c84c871-13d0-4e3d-af6d-3ed789ff84e3.json
+
+ingress:
+  - hostname: servidor.romandevel.cc
+    service: http://localhost:80
+
+  - hostname: moodle.romandevel.cc
+    service: http://localhost:8080
+    originRequest:
+      httpHostHeader: backend
+
+  - hostname: n8n.romandevel.cc
+    service: http://localhost:5678
+
+  - hostname: portainer.romandevel.cc
+    service: https://localhost:9443
+    originRequest:
+      noTLSVerify: true
+
+  - hostname: owncloud.romandevel.cc
+    service: http://localhost:8081
+
+  - hostname: whisper.romandevel.cc
+    service: http://localhost:5001
+
+  - hostname: excelbot.romandevel.cc
+    service: http://localhost:8001
+
+  - hostname: mesa.romandevel.cc
+    service: http://localhost:8082
+
+  - hostname: lunamenguante.romandevel.cc
+    service: http://localhost:8083
+
+  - hostname: neonblast.romandevel.cc
+    service: http://localhost:8084
+
+  - service: http_status:404
