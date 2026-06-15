@@ -1,0 +1,17 @@
+{
+  "name": "neon-blast-server",
+  "version": "1.0.0",
+  "description": "Authoritative multiplayer server for NEÓN BLAST (up to 4 players, coop & versus).",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node sim.test.js && node server.test.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "jsdom": "^29.1.1"
+  }
+}

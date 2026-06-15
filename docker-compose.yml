@@ -1,0 +1,13 @@
+services:
+  neonblast:
+    build: .
+    image: neonblast:latest
+    container_name: neonblast
+    restart: unless-stopped
+    environment:
+      PORT: 8080
+    ports:
+      # Publicamos en el host para que cloudflared (systemd, fuera de Docker)
+      # pueda alcanzar el juego en http://localhost:8080.
+      # Si NO quieres exponerlo en la LAN, cambia a "127.0.0.1:8080:8080".
+      - "8080:8080"
