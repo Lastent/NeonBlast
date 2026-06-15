@@ -18,7 +18,8 @@
 
   /* lobby / connect */
   .panel{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    text-align:center;padding:24px;overflow-y:auto; background:radial-gradient(120% 90% at 50% 35%, rgba(27,17,69,.55), rgba(6,4,20,.96)); }
+    text-align:center;padding:24px;overflow-y:auto; background:radial-gradient(120% 90% at 50% 35%, #1b1145, #060414 70%); }
+  #settingsPanel{z-index:30}
   .eyebrow{font-family:"Space Mono",monospace;letter-spacing:.5em;font-size:12px;color:var(--magenta);text-transform:uppercase;margin-bottom:10px;text-shadow:0 0 16px var(--magenta)}
   .title{font-weight:700;font-size:clamp(38px,10vw,92px);line-height:.9;letter-spacing:.03em;
     background:linear-gradient(180deg,#fff,var(--cyan) 55%,var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 26px rgba(56,240,255,.35))}
@@ -47,6 +48,19 @@
   .roomcode{font-family:"Space Mono",monospace;font-size:clamp(30px,9vw,54px);letter-spacing:.3em;color:var(--lime);text-shadow:0 0 22px var(--lime);margin:6px 0}
   .players{display:flex;flex-direction:column;gap:8px;width:min(92vw,420px);margin-top:6px}
   .pcard{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;border:1px solid rgba(176,107,255,.3);background:rgba(20,18,46,.55)}
+  .slot{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;border:1px solid rgba(176,107,255,.35);background:rgba(20,18,46,.7);cursor:pointer;transition:transform .12s,border-color .12s}
+  .slot:hover{transform:translateY(-1px);border-color:rgba(56,240,255,.6)}
+  .slot .num{font-family:"Space Mono",monospace;font-size:11px;color:var(--dim);letter-spacing:.18em}
+  .slot .info{flex:1;text-align:left;display:flex;flex-direction:column;gap:2px;min-width:0}
+  .slot .info .ttl{font-weight:700;font-size:15px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .slot .info .meta{font-family:"Space Mono",monospace;font-size:12px;color:var(--dim)}
+  .slot.empty .info .ttl{color:var(--dim);font-style:italic}
+  .slot .act{display:flex;gap:6px}
+  .slot .mini{font-family:"Chakra Petch",sans-serif;font-weight:700;font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+    border:none;border-radius:99px;padding:7px 12px;cursor:pointer;color:#060414}
+  .slot .mini.go{background:linear-gradient(180deg,var(--lime),#7fc01a)}
+  .slot .mini.new{background:linear-gradient(180deg,var(--cyan),#1cc9e0)}
+  .slot .mini.del{background:rgba(255,61,139,.18);color:var(--magenta);border:1px solid rgba(255,61,139,.5)}
   .dot{width:14px;height:14px;border-radius:50%}
   .pcard .nm{font-weight:700}
   .pcard .tag{margin-left:auto;font-size:10px;letter-spacing:.16em;color:#060414;background:var(--amber);border-radius:99px;padding:2px 8px}
@@ -109,11 +123,6 @@
   <div class="sub">Juega solo contra los enemigos, o crea una sala y comparte el código con tus amigos.</div>
   <div class="card">
     <input class="txt" id="nameInput" maxlength="12" placeholder="Tu nombre" />
-    <div class="seg" id="livesSeg" title="Vidas para el modo solo">
-      <div class="opt" data-lives="3">3 vidas<small>desafío</small></div>
-      <div class="opt on" data-lives="5">5 vidas<small>recomendado</small></div>
-      <div class="opt" data-lives="9">9 vidas<small>relajado</small></div>
-    </div>
     <button class="btn lime" id="soloBtn">Jugar Solo</button>
     <div class="note" style="margin-top:-4px">— o multijugador —</div>
     <div class="seg" id="modeSeg">
@@ -128,6 +137,23 @@
   </div>
   <div class="err" id="connErr"></div>
   <div class="note" id="connState">Conectando al servidor…</div>
+</div>
+
+<!-- SOLO: ranuras de guardado -->
+<div class="panel hidden" id="soloPanel">
+  <div class="eyebrow">Modo Solo</div>
+  <div class="title" style="font-size:clamp(34px,7vw,62px)">PARTIDAS</div>
+  <div class="sub">Elige una ranura para continuar tu progreso o empezar de cero.</div>
+  <div class="card" style="gap:10px;width:min(92vw,520px)">
+    <div id="slotList" style="display:flex;flex-direction:column;gap:8px"></div>
+    <div class="note" style="text-align:left;font-size:11px">Vidas para una nueva partida:</div>
+    <div class="seg" id="livesSeg">
+      <div class="opt" data-lives="3">3<small>desafío</small></div>
+      <div class="opt on" data-lives="5">5<small>recomendado</small></div>
+      <div class="opt" data-lives="9">9<small>relajado</small></div>
+    </div>
+    <button class="btn ghost" id="backSoloBtn">Volver al menú</button>
+  </div>
 </div>
 
 <!-- SETTINGS -->
@@ -254,12 +280,13 @@ function onMsg(m){
   else if(m.t==='state'){
     isHost=(m.host===myId);
     latest=m.snap; snaps.push({time:performance.now(), snap:m.snap}); if(snaps.length>14) snaps.shift();
+    autoSaveSolo(m.snap);
     showGame(m.snap);
   }
 }
 
 // ---------------- screens ----------------
-function toConnect(){ $('connectPanel').classList.remove('hidden'); $('roomPanel').classList.add('hidden'); $('gameWrap').classList.add('hidden'); $('endov').classList.remove('show'); $('touch').classList.remove('on'); }
+function toConnect(){ $('connectPanel').classList.remove('hidden'); $('roomPanel').classList.add('hidden'); $('soloPanel').classList.add('hidden'); $('gameWrap').classList.add('hidden'); $('endov').classList.remove('show'); $('touch').classList.remove('on'); activeSlot=-1; _lastSavedLevel=0; }
 function showRoom(){
   $('connectPanel').classList.add('hidden'); $('gameWrap').classList.add('hidden'); $('endov').classList.remove('show'); $('touch').classList.remove('on');
   $('roomPanel').classList.remove('hidden');
@@ -329,9 +356,65 @@ if(isTouch){ bindHold($('dU'),'up'); bindHold($('dD'),'down'); bindHold($('dL'),
 // lobby buttons
 [...$('modeSeg').children].forEach(o=>o.addEventListener('click',()=>{ selMode=o.dataset.mode; [...$('modeSeg').children].forEach(x=>x.classList.toggle('on',x===o)); }));
 $('createBtn').addEventListener('click',()=>{ $('connErr').textContent=''; send({t:'create', name:$('nameInput').value||'Jugador', mode:selMode}); });
-$('soloBtn').addEventListener('click',()=>{ $('connErr').textContent=''; soloPending=true; send({t:'create', name:$('nameInput').value||'Jugador', mode:'coop', lives:soloLives}); });
+// --- ranuras de guardado del modo solo (3 slots, localStorage) ---
+function readSlots(){ try{ const a=JSON.parse(lsGet('neonblast.slots')||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function writeSlots(s){ lsSet('neonblast.slots', JSON.stringify(s||[])); }
+function getSlot(i){ const s=readSlots(); return s[i]||null; }
+function setSlot(i,data){ const s=readSlots(); while(s.length<3) s.push(null); s[i]=data; writeSlots(s); }
+function clearSlot(i){ const s=readSlots(); while(s.length<3) s.push(null); s[i]=null; writeSlots(s); }
+let activeSlot=-1, _lastSavedLevel=0;
+
+function renderSlots(){
+  const root=$('slotList'); root.innerHTML='';
+  for(let i=0;i<3;i++){
+    const data=getSlot(i);
+    const row=document.createElement('div'); row.className='slot'+(data?'':' empty');
+    let info='';
+    if(data){
+      const when = data.ts ? new Date(data.ts).toLocaleDateString() : '';
+      info = '<div class="ttl">'+escapeHtml(data.name||'Jugador')+'</div>'+
+             '<div class="meta">Nivel '+data.level+' · ♥'+data.lives+' · 💣'+data.maxBombs+' · 🔥'+data.range+(data.canKick?' · 👟':'')+' · '+(data.score|0).toLocaleString()+' pts'+(when?' · '+when:'')+'</div>';
+    } else {
+      info = '<div class="ttl">Ranura vacía</div><div class="meta">Toca «Nueva» para empezar.</div>';
+    }
+    row.innerHTML='<span class="num">'+String(i+1).padStart(2,'0')+'</span>'+
+                  '<div class="info">'+info+'</div>'+
+                  '<div class="act">'+
+                    (data?'<button class="mini go" data-act="cont" data-slot="'+i+'">Continuar</button>':'')+
+                    '<button class="mini new" data-act="new" data-slot="'+i+'">Nueva</button>'+
+                    (data?'<button class="mini del" data-act="del" data-slot="'+i+'" title="Borrar">×</button>':'')+
+                  '</div>';
+    root.appendChild(row);
+  }
+  // wire mini buttons
+  root.querySelectorAll('button.mini').forEach(b=>{
+    b.addEventListener('click',(e)=>{ e.stopPropagation();
+      const i=parseInt(b.dataset.slot,10), act=b.dataset.act;
+      if(act==='cont'){ startSoloFromSlot(i, getSlot(i)); }
+      else if(act==='new'){ if(getSlot(i) && !confirm('Esta ranura ya tiene una partida guardada. ¿Sobrescribir con una partida nueva?')) return; clearSlot(i); startSoloFromSlot(i, null); }
+      else if(act==='del'){ if(confirm('¿Borrar el progreso de esta ranura?')){ clearSlot(i); renderSlots(); } }
+    });
+  });
+}
+function autoSaveSolo(snap){
+  if(activeSlot<0 || !snap || snap.mode!=='coop' || snap.players.length!==1) return;
+  // guarda al iniciar cada nivel nuevo (status='countdown' con level cambiado)
+  if(snap.status!=='countdown' || !snap.level || snap.level===_lastSavedLevel) return;
+  const me = snap.players[0]; if(!me) return;
+  setSlot(activeSlot, { ts:Date.now(), name:me.name, level:snap.level, lives:Math.max(1,me.lives|0),
+    maxBombs:me.maxBombs|0, range:me.range|0, canKick:!!me.canKick, score:me.score|0 });
+  _lastSavedLevel = snap.level;
+}
+function startSoloFromSlot(slotIdx, data){
+  $('connErr').textContent=''; activeSlot=slotIdx; _lastSavedLevel=0; soloPending=true;
+  const msg={ t:'create', name:$('nameInput').value||'Jugador', mode:'coop', lives:(data?data.lives:soloLives) };
+  if(data){ msg.solo={ level:data.level, lives:data.lives, maxBombs:data.maxBombs, range:data.range, canKick:!!data.canKick, score:data.score|0 }; }
+  send(msg);
+  $('soloPanel').classList.add('hidden');
+}
+$('soloBtn').addEventListener('click',()=>{ $('connectPanel').classList.add('hidden'); $('soloPanel').classList.remove('hidden'); renderSlots(); });
+$('backSoloBtn').addEventListener('click',()=>{ $('soloPanel').classList.add('hidden'); $('connectPanel').classList.remove('hidden'); });
 [...$('livesSeg').children].forEach(o=>o.addEventListener('click',()=>{ soloLives=parseInt(o.dataset.lives,10); lsSet('neonblast.solo.lives', String(soloLives)); [...$('livesSeg').children].forEach(x=>x.classList.toggle('on',x===o)); }));
-// reflejar la elección guardada al cargar
 [...$('livesSeg').children].forEach(x=>x.classList.toggle('on', parseInt(x.dataset.lives,10)===soloLives));
 $('joinBtn').addEventListener('click',()=>{ $('connErr').textContent=''; const c=$('codeInput').value.trim().toUpperCase(); if(c.length===4) send({t:'join', code:c, name:$('nameInput').value||'Jugador'}); else $('connErr').textContent='Escribe un código de 4 letras.'; });
 

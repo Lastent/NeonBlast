@@ -30,8 +30,21 @@ class Sim {
     this.message = '';            // short banner for clients
     this.winnerId = null;
     this.startingLives = 3;       // vidas iniciales por jugador (configurable en solo)
+    this.soloOverride = null;     // {level, lives, maxBombs, range, canKick, score} para continuar una partida solo
   }
   setStartingLives(n){ n = Number(n); if(!Number.isFinite(n)) return; this.startingLives = Math.max(1, Math.min(99, Math.floor(n))); }
+  setSoloProgress(s){
+    if(!s){ this.soloOverride=null; return; }
+    const clamp=(v,lo,hi,def)=>{ v=parseInt(v,10); return Number.isFinite(v) ? Math.max(lo,Math.min(hi,v)) : def; };
+    this.soloOverride = {
+      level:    clamp(s.level,    1, 99, 1),
+      lives:    clamp(s.lives,    1, 99, this.startingLives),
+      maxBombs: clamp(s.maxBombs, 1, 8,  1),
+      range:    clamp(s.range,    1, 8,  1),
+      canKick:  !!s.canKick,
+      score:    clamp(s.score,    0, 99999999, 0)
+    };
+  }
 
   // ---- players ----
   addPlayer(id, name){
@@ -71,6 +84,12 @@ class Sim {
   startMatch(){
     this.level = 1; this.round = 1; this.winnerId = null;
     for(const p of this.players.values()){ p.score=0; p.wins=0; p.lives=this.startingLives; p.bombType='normal'; p.canKick=false; p.maxBombs=1; p.range=1; p.speed=3.0*TILE; }
+    // Solo: si hay progreso guardado, lo aplicamos al único jugador y al nivel
+    if(this.mode==='coop' && this.soloOverride && this.players.size===1){
+      const o = this.soloOverride; this.level = o.level;
+      const p = this.players.values().next().value;
+      p.lives = o.lives; p.maxBombs = o.maxBombs; p.range = o.range; p.canKick = o.canKick; p.score = o.score;
+    }
     this.buildLevel();
     this.beginCountdown(this.mode==='coop' ? ('NIVEL '+this.level) : ('RONDA '+this.round));
   }
