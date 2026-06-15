@@ -59,6 +59,18 @@
   .ply .nm .d{width:9px;height:9px;border-radius:50%;flex:none}
   .ply .st{font-size:12px;color:var(--ink)}
   .ply.dead{opacity:.4}
+  /* solo HUD (1 jugador coop): barra de stats estilo Bomberman clásico */
+  .solostats{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 14px;width:100%;font-family:"Space Mono",monospace;font-size:13px;padding:6px 8px;
+    border:1px solid rgba(176,107,255,.28);border-radius:14px;background:rgba(20,18,46,.55)}
+  .solostats .stat{display:inline-flex;align-items:center;gap:6px;letter-spacing:.04em;color:var(--ink)}
+  .solostats .stat .ic{font-size:16px;line-height:1;filter:drop-shadow(0 0 6px currentColor)}
+  .solostats .v{font-weight:700;font-size:15px}
+  .solostats .life{color:var(--magenta)}
+  .solostats .bombs{color:var(--cyan)}
+  .solostats .power{color:var(--amber)}
+  .solostats .kick.on{color:var(--lime)} .solostats .kick.off{color:var(--dim)}
+  .solostats .btype.normal{color:var(--cyan)} .solostats .btype.remote{color:var(--violet)} .solostats .btype.pierce{color:var(--magenta)}
+  .solostats .score{color:var(--lime);margin-left:auto}
   #topinfo{display:flex;justify-content:center;gap:16px;font-family:"Space Mono",monospace;font-size:12px;color:var(--dim);min-height:16px}
   #topinfo b{color:var(--amber)}
   canvas{display:block;border-radius:12px;max-width:96vw;max-height:64vh;width:auto;height:auto;box-shadow:0 0 0 1px rgba(176,107,255,.25),0 24px 70px rgba(0,0,0,.6)}
@@ -442,21 +454,37 @@ function interpView(){
 
 function renderHUD(snap){
   const hud=$('hud'); hud.innerHTML='';
-  snap.players.forEach(p=>{
-    const d=document.createElement('div'); d.className='ply'+(p.alive?'':' dead');
-    const stat = snap.mode==='versus' ? ('🏆'+p.wins+' · '+p.score) : ((p.out?'☠':('♥'+p.lives))+' · '+p.score);
-    d.innerHTML='<span class="nm"><span class="d" style="background:'+p.color+'"></span>'+escapeHtml(p.name)+(p.id===myId?' (tú)':'')+'</span><span class="st">'+stat+'</span>';
+  const solo = snap.mode==='coop' && snap.players.length===1;
+  if(solo){
+    const p=snap.players[0];
+    const btypeLabel = p.bombType==='remote'?'REMOTO':p.bombType==='pierce'?'PERFORANTE':'NORMAL';
+    const d=document.createElement('div'); d.className='solostats';
+    d.innerHTML =
+      '<span class="stat life"><span class="ic">♥</span><span class="v">×'+(p.out?0:p.lives)+'</span></span>'+
+      '<span class="stat bombs"><span class="ic">💣</span><span class="v">×'+p.maxBombs+'</span></span>'+
+      '<span class="stat power"><span class="ic">🔥</span><span class="v">×'+p.range+'</span></span>'+
+      '<span class="stat kick '+(p.canKick?'on':'off')+'"><span class="ic">👟</span>'+(p.canKick?'SÍ':'—')+'</span>'+
+      '<span class="stat btype '+p.bombType+'"><span class="v">'+btypeLabel+'</span></span>'+
+      '<span class="stat score"><span class="v">'+p.score.toLocaleString()+'</span> pts</span>';
     hud.appendChild(d);
-  });
+  } else {
+    snap.players.forEach(p=>{
+      const d=document.createElement('div'); d.className='ply'+(p.alive?'':' dead');
+      const stat = snap.mode==='versus' ? ('🏆'+p.wins+' · '+p.score) : ((p.out?'☠':('♥'+p.lives))+' · '+p.score);
+      d.innerHTML='<span class="nm"><span class="d" style="background:'+p.color+'"></span>'+escapeHtml(p.name)+(p.id===myId?' (tú)':'')+'</span><span class="st">'+stat+'</span>';
+      hud.appendChild(d);
+    });
+  }
   let info='';
   if(snap.mode==='coop'){ const s=Math.max(0,Math.ceil(snap.timeLeft)); info='Nivel <b>'+snap.level+'</b> · Tiempo <b>'+Math.floor(s/60)+':'+String(s%60).padStart(2,'0')+'</b>'; }
   else { info='Ronda <b>'+snap.round+'</b> · Primero a 3 gana'; }
   $('topinfo').innerHTML=info;
-  // my bomb-type band
+  // bomb-type band: solo ya muestra todo en la barra, así que lo ocultamos
   const me=snap.players.find(p=>p.id===myId); const band=$('myband');
-  if(me){ const map={normal:['Normal','#38f0ff',''],remote:['Remoto','#b06bff', isTouch?'· toca 💥 (en orden)':'· Shift detona en orden'],pierce:['Perforante','#ff4d6d','· atraviesa bloques']}; const o=map[me.bombType]||map.normal;
-    band.style.setProperty('--bt',o[1]); band.innerHTML='Bomba: <b>'+o[0]+'</b> '+o[2]+(me.canKick?' · 👟 patada':''); 
+  if(me && !solo){ const map={normal:['Normal','#38f0ff',''],remote:['Remoto','#b06bff', isTouch?'· toca 💥 (en orden)':'· Shift detona en orden'],pierce:['Perforante','#ff4d6d','· atraviesa bloques']}; const o=map[me.bombType]||map.normal;
+    band.style.setProperty('--bt',o[1]); band.innerHTML='Bomba: <b>'+o[0]+'</b> '+o[2]+(me.canKick?' · 👟 patada':'');
     if(isTouch) $('tDet').classList.toggle('on', me.bombType==='remote'); }
+  else if(me && solo){ band.textContent=''; if(isTouch) $('tDet').classList.toggle('on', me.bombType==='remote'); }
   else band.textContent='';
 }
 let lastBannerMsg='';
