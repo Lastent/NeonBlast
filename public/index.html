@@ -534,52 +534,110 @@ const Audio = {
       case 'ui':       this._osc(900,t,0.04,'square',0.18); break;
     }
   },
-  // Música procedural synthwave (loop simple, 4 acordes en menor)
+  // --- voces musicales (chiptune) ---
+  _hz(midi){ return 440*Math.pow(2,(midi-69)/12); },
+  _pulse(midi, when, dur, vol, lpHz){
+    const c=this.ctx;
+    const o=c.createOscillator(); o.type='square'; o.frequency.setValueAtTime(this._hz(midi), when);
+    const g=c.createGain();
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(vol, when+0.005);
+    g.gain.linearRampToValueAtTime(vol*0.7, when+dur*0.4);
+    g.gain.linearRampToValueAtTime(0, when+dur);
+    const lp=c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=lpHz||7000;
+    o.connect(lp); lp.connect(g); g.connect(this.musicBus);
+    o.start(when); o.stop(when+dur+0.02);
+  },
+  _bassNote(midi, when, dur, vol){
+    const c=this.ctx;
+    const o=c.createOscillator(); o.type='sawtooth'; o.frequency.value=this._hz(midi);
+    const g=c.createGain();
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(vol, when+0.01);
+    g.gain.linearRampToValueAtTime(vol*0.5, when+dur*0.7);
+    g.gain.linearRampToValueAtTime(0, when+dur);
+    const lp=c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=500;
+    o.connect(lp); lp.connect(g); g.connect(this.musicBus);
+    o.start(when); o.stop(when+dur+0.02);
+  },
+  _kick(when){
+    const c=this.ctx;
+    const o=c.createOscillator(); o.type='sine';
+    o.frequency.setValueAtTime(160, when);
+    o.frequency.exponentialRampToValueAtTime(45, when+0.10);
+    const g=c.createGain();
+    g.gain.setValueAtTime(0.5, when);
+    g.gain.exponentialRampToValueAtTime(0.001, when+0.18);
+    o.connect(g); g.connect(this.musicBus);
+    o.start(when); o.stop(when+0.22);
+  },
+  _snare(when){
+    const c=this.ctx;
+    const len=Math.floor(c.sampleRate*0.10);
+    const buf=c.createBuffer(1,len,c.sampleRate); const d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,1.5);
+    const src=c.createBufferSource(); src.buffer=buf;
+    const hp=c.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=1400;
+    const g=c.createGain(); g.gain.value=0.22;
+    src.connect(hp); hp.connect(g); g.connect(this.musicBus);
+    src.start(when);
+  },
+  _hat(when){
+    const c=this.ctx;
+    const len=Math.floor(c.sampleRate*0.03);
+    const buf=c.createBuffer(1,len,c.sampleRate); const d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*(1-i/len);
+    const src=c.createBufferSource(); src.buffer=buf;
+    const hp=c.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=7000;
+    const g=c.createGain(); g.gain.value=0.07;
+    src.connect(hp); hp.connect(g); g.connect(this.musicBus);
+    src.start(when);
+  },
+  // Música chiptune estilo Bomberman (loop de 4 compases, C mayor)
   startMusic(mood){
     if(!this.ctx) return;
     const myToken = ++this.music.token; this.music.mood=mood;
-    const noteHz = (n)=> 440*Math.pow(2,(n-69)/12); // n = MIDI
-    // progresión MIDI por mood (menor)
-    const prog = mood==='menu'
-      ? [[57,60,64], [55,58,62], [53,57,60], [55,58,62]]   // Am Gm Fm Gm (sad menu)
-      : [[57,60,64], [53,57,60], [60,63,67], [55,58,62]];  // Am Fm Cm Gm (gameplay)
-    const bpm = mood==='menu'?70:96; const stepDur = 60/bpm/4; // 1/16
-    let step=0;
-    const scheduleStep = ()=>{
-      if(!this.ctx || myToken!==this.music.token) return;
-      const beat = step%16; const chord = prog[Math.floor(step/16)%prog.length];
-      const now = this.ctx.currentTime;
-      // bajo en cada negra
-      if(beat%4===0){
-        const o=this.ctx.createOscillator(); const g=this.ctx.createGain();
-        o.type='sawtooth'; o.frequency.value=noteHz(chord[0]-24);
-        g.gain.setValueAtTime(0.0001,now); g.gain.exponentialRampToValueAtTime(0.22,now+0.02); g.gain.exponentialRampToValueAtTime(0.0001,now+stepDur*4*0.85);
-        const lp=this.ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=600;
-        o.connect(lp); lp.connect(g); g.connect(this.musicBus);
-        o.start(now); o.stop(now+stepDur*4*0.9);
-      }
-      // arpegio agudo cada 1/8
+    const bpm = 138; const stepDur = 60/bpm/4; // 1/16
+    // Progresión: C - Am - F - G  (roots MIDI bajos)
+    const bassRoots = [36, 33, 29, 31];        // C2 A1 F1 G1 (sub-bajo)
+    const bassFifths= [43, 40, 36, 38];        // G2 E2 C2 D2 (quinta)
+    // Melodía: ascensos/descensos de arpegio (16 notas por compás de 8 corcheas? No: 8 corcheas por compás = 8 notas)
+    const melody = [
+      [60,64,67,72,67,64,60,62], // Bar 1 C: C E G C^ G E C D
+      [57,60,64,69,64,60,57,59], // Bar 2 Am: A C E A^ E C A B
+      [53,57,60,65,60,57,53,55], // Bar 3 F: F A C F^ C A F G
+      [55,59,62,67,62,59,55,66]  // Bar 4 G: G B D G^ D B G F#
+    ];
+    let step=0; let nextTime = this.ctx.currentTime + 0.08;
+    const LOOKAHEAD = 0.18; const SCHED_MS = 35;
+    const playStep = (s, when)=>{
+      const beat = s%16; const bar = Math.floor(s/16)%4;
+      // bajo: root en beat 1+2, quinta en beat 3+4 (cada negra = 4 steps)
+      if(beat===0||beat===4){ this._bassNote(bassRoots[bar], when, stepDur*4*0.85, 0.28); }
+      else if(beat===8||beat===12){ this._bassNote(bassFifths[bar], when, stepDur*4*0.85, 0.24); }
+      // melodía: una corchea por cada 2 steps (8 notas por compás)
       if(beat%2===0){
-        const idx = (Math.floor(beat/2))%chord.length;
-        const o=this.ctx.createOscillator(); const g=this.ctx.createGain();
-        o.type='triangle'; o.frequency.value=noteHz(chord[idx]+12);
-        g.gain.setValueAtTime(0.0001,now); g.gain.exponentialRampToValueAtTime(0.10,now+0.01); g.gain.exponentialRampToValueAtTime(0.0001,now+stepDur*1.6);
-        o.connect(g); g.connect(this.musicBus);
-        o.start(now); o.stop(now+stepDur*1.7);
+        const n = melody[bar][beat/2];
+        this._pulse(n, when, stepDur*1.8, 0.18, 7000);
       }
-      // kick en 1 y 3 (solo gameplay)
-      if(mood==='game' && (beat===0||beat===8)){
-        const len=Math.floor(this.ctx.sampleRate*0.08); const buf=this.ctx.createBuffer(1,len,this.ctx.sampleRate); const d=buf.getChannelData(0);
-        for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*(1-i/len);
-        const src=this.ctx.createBufferSource(); src.buffer=buf;
-        const lp=this.ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=180;
-        const g=this.ctx.createGain(); g.gain.value=0.35;
-        src.connect(lp); lp.connect(g); g.connect(this.musicBus); src.start(now);
+      // batería
+      if(mood==='game'){
+        if(beat===0||beat===8) this._kick(when);
+        if(beat===4||beat===12) this._snare(when);
+        if(beat%2===0) this._hat(when);
       }
-      step++;
-      this.music.timer = setTimeout(scheduleStep, stepDur*1000);
     };
-    this.stopMusic(); this.music.token = myToken; scheduleStep();
+    const scheduler = ()=>{
+      if(!this.ctx || myToken!==this.music.token) return;
+      while(nextTime < this.ctx.currentTime + LOOKAHEAD){
+        playStep(step, nextTime);
+        nextTime += stepDur;
+        step++;
+      }
+      this.music.timer = setTimeout(scheduler, SCHED_MS);
+    };
+    this.stopMusic(); this.music.token = myToken; this.music.mood = mood;
+    nextTime = this.ctx.currentTime + 0.08; step = 0; scheduler();
   },
   stopMusic(){ if(this.music.timer){ clearTimeout(this.music.timer); this.music.timer=null; } this.music.token++; this.music.mood=null; }
 };
