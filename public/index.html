@@ -38,6 +38,11 @@
   .btn.ghost:hover{background:rgba(176,107,255,.14)}
   .btn.lime{background:linear-gradient(180deg,var(--lime),#7fc01a);box-shadow:0 0 0 1px rgba(182,255,61,.6),0 12px 36px rgba(182,255,61,.35)}
   #settingsBtn{position:fixed;top:14px;right:14px;padding:8px 14px;font-size:11px;z-index:25;letter-spacing:.18em}
+  .slider-row{display:grid;grid-template-columns:90px 1fr 36px;align-items:center;gap:10px;font-size:13px;color:var(--ink);font-family:"Space Mono",monospace}
+  .slider-row input[type=range]{appearance:none;-webkit-appearance:none;width:100%;height:6px;border-radius:99px;background:rgba(176,107,255,.25);outline:none}
+  .slider-row input[type=range]::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--cyan);box-shadow:0 0 10px var(--cyan);cursor:pointer}
+  .slider-row input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--cyan);box-shadow:0 0 10px var(--cyan);cursor:pointer;border:none}
+  .slider-row span:last-child{text-align:right;color:var(--dim)}
   .seg{display:flex;gap:8px}
   .seg .opt{flex:1;padding:11px;border-radius:12px;border:1px solid rgba(138,134,184,.5);background:rgba(138,134,184,.08);
     color:var(--dim);font-weight:700;font-size:13px;cursor:pointer;letter-spacing:.06em}
@@ -159,17 +164,26 @@
 <!-- SETTINGS -->
 <div class="panel hidden" id="settingsPanel">
   <div class="eyebrow">Ajustes</div>
-  <div class="title" style="font-size:clamp(34px,7vw,62px)">CALIDAD</div>
-  <div class="sub">Ajusta los efectos visuales según el rendimiento de tu dispositivo.</div>
-  <div class="card">
+  <div class="title" style="font-size:clamp(34px,7vw,62px)">AJUSTES</div>
+  <div class="card" style="width:min(92vw,460px)">
+    <div class="note" style="text-align:left;font-size:11px">Calidad gráfica</div>
     <div class="seg" id="gfxSeg">
       <div class="opt" data-gfx="bajo">Bajo<small>máximo FPS</small></div>
       <div class="opt" data-gfx="medio">Medio<small>equilibrado</small></div>
       <div class="opt" data-gfx="alto">Alto<small>neón completo</small></div>
     </div>
+    <div class="note" id="gfxNote" style="text-align:left;font-size:11px;color:var(--dim)"></div>
+
+    <div class="note" style="text-align:left;font-size:11px;margin-top:8px">Audio</div>
+    <div class="seg" id="muteSeg">
+      <div class="opt on" data-mute="0">🔊 Activo</div>
+      <div class="opt" data-mute="1">🔇 Silencio</div>
+    </div>
+    <div class="slider-row"><span>🎵 Música</span><input type="range" id="musicVol" min="0" max="100" step="1" /><span id="musicVolLbl">50</span></div>
+    <div class="slider-row"><span>💥 Efectos</span><input type="range" id="sfxVol" min="0" max="100" step="1" /><span id="sfxVolLbl">70</span></div>
+
     <button class="btn" id="closeSettingsBtn">Listo</button>
   </div>
-  <div class="note" id="gfxNote"></div>
 </div>
 
 <!-- ROOM (waiting) -->
@@ -281,12 +295,13 @@ function onMsg(m){
     isHost=(m.host===myId);
     latest=m.snap; snaps.push({time:performance.now(), snap:m.snap}); if(snaps.length>14) snaps.shift();
     autoSaveSolo(m.snap);
+    handleAudioEvents(m.snap);
     showGame(m.snap);
   }
 }
 
 // ---------------- screens ----------------
-function toConnect(){ $('connectPanel').classList.remove('hidden'); $('roomPanel').classList.add('hidden'); $('soloPanel').classList.add('hidden'); $('gameWrap').classList.add('hidden'); $('endov').classList.remove('show'); $('touch').classList.remove('on'); activeSlot=-1; _lastSavedLevel=0; }
+function toConnect(){ $('connectPanel').classList.remove('hidden'); $('roomPanel').classList.add('hidden'); $('soloPanel').classList.add('hidden'); $('gameWrap').classList.add('hidden'); $('endov').classList.remove('show'); $('touch').classList.remove('on'); activeSlot=-1; _lastSavedLevel=0; if(typeof Audio!=='undefined' && Audio.stopMusic){ Audio.stopMusic(); resetAudioTracking(); } }
 function showRoom(){
   $('connectPanel').classList.add('hidden'); $('gameWrap').classList.add('hidden'); $('endov').classList.remove('show'); $('touch').classList.remove('on');
   $('roomPanel').classList.remove('hidden');
@@ -406,6 +421,39 @@ function autoSaveSolo(snap){
     maxBombs:me.maxBombs|0, range:me.range|0, canKick:!!me.canKick, bombType:me.bombType||'normal', score:me.score|0 });
   _lastSavedLevel = snap.level;
 }
+
+// ---- detección de eventos audio (diff snapshot a snapshot) ----
+const _audio = { prevBombs:new Set(), prevPUs:0, prevEnemies:0, prevLives:null, prevLevel:0, prevStatus:'', prevPlayersAlive:0 };
+function handleAudioEvents(snap){
+  if(!snap || !snap.players) return;
+  // bombas: nuevas → place; las que ya no están → explode
+  const cur=new Set((snap.bombs||[]).map(b=>b.id));
+  for(const id of cur) if(!_audio.prevBombs.has(id)) Audio.sfx('place');
+  for(const id of _audio.prevBombs) if(!cur.has(id)) Audio.sfx('explode');
+  _audio.prevBombs=cur;
+  // power-ups recogidos (solo si bajó el conteo)
+  const pus=(snap.powerups||[]).length;
+  if(pus<_audio.prevPUs) Audio.sfx('pickup');
+  _audio.prevPUs=pus;
+  // enemigos eliminados
+  const en=(snap.enemies||[]).length;
+  if(en<_audio.prevEnemies) Audio.sfx('kill');
+  _audio.prevEnemies=en;
+  // daño (mis vidas bajaron)
+  const me = snap.players.find(p=>p.id===myId);
+  if(me){ if(_audio.prevLives!=null && me.lives<_audio.prevLives) Audio.sfx('hurt'); _audio.prevLives=me.lives; }
+  // nivel superado
+  if(snap.level && _audio.prevLevel && snap.level>_audio.prevLevel) Audio.sfx('clear');
+  _audio.prevLevel = snap.level||_audio.prevLevel;
+  // game over
+  if(snap.status==='gameover' && _audio.prevStatus!=='gameover') Audio.sfx('gameover');
+  // música: arranca al entrar a juego, para en gameover/lobby
+  const playing = snap.status==='playing'||snap.status==='countdown'||snap.status==='roundover'||snap.status==='levelclear';
+  if(playing && Audio.music.mood!=='game') Audio.startMusic('game');
+  else if(!playing && Audio.music.mood){ Audio.stopMusic(); }
+  _audio.prevStatus = snap.status||'';
+}
+function resetAudioTracking(){ _audio.prevBombs.clear(); _audio.prevPUs=0; _audio.prevEnemies=0; _audio.prevLives=null; _audio.prevLevel=0; _audio.prevStatus=''; }
 function startSoloFromSlot(slotIdx, data){
   $('connErr').textContent=''; activeSlot=slotIdx; _lastSavedLevel=0; soloPending=true;
   const msg={ t:'create', name:$('nameInput').value||'Jugador', mode:'coop', lives:(data?data.lives:soloLives) };
@@ -430,6 +478,134 @@ $('settingsBtn').addEventListener('click',()=>{
 });
 $('closeSettingsBtn').addEventListener('click',()=>{ $('settingsPanel').classList.add('hidden'); });
 applyGfx();
+
+// ---------------- audio (Web Audio API, sintetizado) ----------------
+const Audio = {
+  ctx:null, master:null, musicBus:null, sfxBus:null,
+  musicVol: clamp01(parseFloat(lsGet('neonblast.musicVol')||'0.5')),
+  sfxVol:   clamp01(parseFloat(lsGet('neonblast.sfxVol')||'0.7')),
+  muted:    lsGet('neonblast.muted')==='1',
+  music: { token:0, timer:null, mood:null },
+  init(){
+    if(this.ctx) return;
+    const AC = window.AudioContext||window.webkitAudioContext; if(!AC) return;
+    try { this.ctx = new AC(); } catch(e){ return; }
+    this.master   = this.ctx.createGain(); this.master.gain.value   = this.muted?0:1;
+    this.musicBus = this.ctx.createGain(); this.musicBus.gain.value = this.musicVol;
+    this.sfxBus   = this.ctx.createGain(); this.sfxBus.gain.value   = this.sfxVol;
+    this.musicBus.connect(this.master); this.sfxBus.connect(this.master); this.master.connect(this.ctx.destination);
+  },
+  resume(){ if(this.ctx && this.ctx.state==='suspended') this.ctx.resume(); },
+  setMute(m){ this.muted=!!m; lsSet('neonblast.muted', this.muted?'1':'0'); if(this.master) this.master.gain.value=this.muted?0:1; },
+  setMusicVol(v){ this.musicVol=clamp01(v); lsSet('neonblast.musicVol', String(this.musicVol)); if(this.musicBus) this.musicBus.gain.value=this.musicVol; },
+  setSfxVol(v){ this.sfxVol=clamp01(v); lsSet('neonblast.sfxVol', String(this.sfxVol)); if(this.sfxBus) this.sfxBus.gain.value=this.sfxVol; },
+  // primitivos
+  _osc(freq, when, dur, type, vol, slideTo){
+    const c=this.ctx; const o=c.createOscillator(); const g=c.createGain();
+    o.type=type; o.frequency.setValueAtTime(freq, when);
+    if(slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), when+dur);
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0001,vol), when+0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, when+dur);
+    o.connect(g); g.connect(this.sfxBus);
+    o.start(when); o.stop(when+dur+0.05);
+  },
+  _noise(when, dur, vol, lpFreq){
+    const c=this.ctx; const len=Math.floor(c.sampleRate*dur);
+    const buf=c.createBuffer(1,len,c.sampleRate); const d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*(1-i/len);
+    const src=c.createBufferSource(); src.buffer=buf;
+    const lp=c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=lpFreq||2000;
+    const g=c.createGain(); g.gain.value=vol;
+    src.connect(lp); lp.connect(g); g.connect(this.sfxBus);
+    src.start(when);
+  },
+  // SFX nombrados
+  sfx(name){
+    if(!this.ctx) return; const t=this.ctx.currentTime;
+    switch(name){
+      case 'place':    this._osc(160, t, 0.10, 'square', 0.35, 60); break;
+      case 'explode':  this._noise(t, 0.5, 0.55, 700); this._osc(70, t, 0.35, 'sawtooth', 0.45, 35); break;
+      case 'pickup':   this._osc(660,t,0.07,'square',0.28); this._osc(880,t+0.07,0.07,'square',0.28); this._osc(1320,t+0.14,0.12,'square',0.32); break;
+      case 'kill':     this._osc(520,t,0.07,'square',0.25); this._osc(260,t+0.07,0.18,'sawtooth',0.3,140); break;
+      case 'hurt':     this._osc(260,t,0.18,'sawtooth',0.4,90); this._noise(t, 0.12, 0.2, 1500); break;
+      case 'clear':    [523.25,659.25,783.99,1046.5].forEach((f,i)=>this._osc(f,t+i*0.10,0.18,'square',0.30)); break;
+      case 'gameover': [440,392,349.23,261.63].forEach((f,i)=>this._osc(f,t+i*0.18,0.30,'sawtooth',0.35)); break;
+      case 'ui':       this._osc(900,t,0.04,'square',0.18); break;
+    }
+  },
+  // Música procedural synthwave (loop simple, 4 acordes en menor)
+  startMusic(mood){
+    if(!this.ctx) return;
+    const myToken = ++this.music.token; this.music.mood=mood;
+    const noteHz = (n)=> 440*Math.pow(2,(n-69)/12); // n = MIDI
+    // progresión MIDI por mood (menor)
+    const prog = mood==='menu'
+      ? [[57,60,64], [55,58,62], [53,57,60], [55,58,62]]   // Am Gm Fm Gm (sad menu)
+      : [[57,60,64], [53,57,60], [60,63,67], [55,58,62]];  // Am Fm Cm Gm (gameplay)
+    const bpm = mood==='menu'?70:96; const stepDur = 60/bpm/4; // 1/16
+    let step=0;
+    const scheduleStep = ()=>{
+      if(!this.ctx || myToken!==this.music.token) return;
+      const beat = step%16; const chord = prog[Math.floor(step/16)%prog.length];
+      const now = this.ctx.currentTime;
+      // bajo en cada negra
+      if(beat%4===0){
+        const o=this.ctx.createOscillator(); const g=this.ctx.createGain();
+        o.type='sawtooth'; o.frequency.value=noteHz(chord[0]-24);
+        g.gain.setValueAtTime(0.0001,now); g.gain.exponentialRampToValueAtTime(0.22,now+0.02); g.gain.exponentialRampToValueAtTime(0.0001,now+stepDur*4*0.85);
+        const lp=this.ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=600;
+        o.connect(lp); lp.connect(g); g.connect(this.musicBus);
+        o.start(now); o.stop(now+stepDur*4*0.9);
+      }
+      // arpegio agudo cada 1/8
+      if(beat%2===0){
+        const idx = (Math.floor(beat/2))%chord.length;
+        const o=this.ctx.createOscillator(); const g=this.ctx.createGain();
+        o.type='triangle'; o.frequency.value=noteHz(chord[idx]+12);
+        g.gain.setValueAtTime(0.0001,now); g.gain.exponentialRampToValueAtTime(0.10,now+0.01); g.gain.exponentialRampToValueAtTime(0.0001,now+stepDur*1.6);
+        o.connect(g); g.connect(this.musicBus);
+        o.start(now); o.stop(now+stepDur*1.7);
+      }
+      // kick en 1 y 3 (solo gameplay)
+      if(mood==='game' && (beat===0||beat===8)){
+        const len=Math.floor(this.ctx.sampleRate*0.08); const buf=this.ctx.createBuffer(1,len,this.ctx.sampleRate); const d=buf.getChannelData(0);
+        for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*(1-i/len);
+        const src=this.ctx.createBufferSource(); src.buffer=buf;
+        const lp=this.ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=180;
+        const g=this.ctx.createGain(); g.gain.value=0.35;
+        src.connect(lp); lp.connect(g); g.connect(this.musicBus); src.start(now);
+      }
+      step++;
+      this.music.timer = setTimeout(scheduleStep, stepDur*1000);
+    };
+    this.stopMusic(); this.music.token = myToken; scheduleStep();
+  },
+  stopMusic(){ if(this.music.timer){ clearTimeout(this.music.timer); this.music.timer=null; } this.music.token++; this.music.mood=null; }
+};
+function clamp01(v){ v=parseFloat(v); if(!Number.isFinite(v)) return 0; return Math.max(0,Math.min(1,v)); }
+
+// init audio en el primer gesto del usuario (regla de autoplay)
+function _audioBoot(){ Audio.init(); Audio.resume(); window.removeEventListener('pointerdown',_audioBoot,true); window.removeEventListener('keydown',_audioBoot,true); }
+window.addEventListener('pointerdown',_audioBoot,true);
+window.addEventListener('keydown',_audioBoot,true);
+
+// Ajustes de audio en el panel
+function initAudioUI(){
+  $('musicVol').value = Math.round(Audio.musicVol*100); $('musicVolLbl').textContent = $('musicVol').value;
+  $('sfxVol').value   = Math.round(Audio.sfxVol*100);   $('sfxVolLbl').textContent   = $('sfxVol').value;
+  [...$('muteSeg').children].forEach(o=>o.classList.toggle('on', (o.dataset.mute==='1')===Audio.muted));
+}
+$('musicVol').addEventListener('input',e=>{ const v=parseInt(e.target.value,10)/100; Audio.setMusicVol(v); $('musicVolLbl').textContent=e.target.value; });
+$('sfxVol').addEventListener('input',e=>{ const v=parseInt(e.target.value,10)/100; Audio.setSfxVol(v); $('sfxVolLbl').textContent=e.target.value; Audio.sfx('ui'); });
+[...$('muteSeg').children].forEach(o=>o.addEventListener('click',()=>{ Audio.setMute(o.dataset.mute==='1'); [...$('muteSeg').children].forEach(x=>x.classList.toggle('on',x===o)); }));
+initAudioUI();
+
+// click UI suave en cualquier botón
+document.addEventListener('click', (e)=>{
+  const t = e.target; if(!t || !t.closest) return;
+  if(t.closest('.btn, .opt, .slot .mini, .db, #tBomb, #tDet')) Audio.sfx('ui');
+}, true);
 [...$('roomModeSeg').children].forEach(o=>o.addEventListener('click',()=>{ if(isHost) send({t:'setmode', mode:o.dataset.mode}); }));
 $('startBtn').addEventListener('click',()=>send({t:'start'}));
 $('leaveBtn').addEventListener('click',()=>{ send({t:'leave'}); toConnect(); });
