@@ -760,9 +760,10 @@ function drawPlayer(p,tm){
   ctx.fillText(p.name||'', px, py-r-14);
 }
 
-// interpolation: positions for players/bombs/enemies at a small delay; everything else from latest
+// interpolation: positions for other players/bombs/enemies at a small delay;
+// el jugador local (myId) se renderiza desde el snapshot más fresco para sentirse inmediato.
 function interpView(){
-  const RENDER_DELAY=90;
+  const RENDER_DELAY=50; // antes 90: menos delay = menos lag (tick ahora a 60 Hz, 16 ms → buffer suficiente)
   const now=performance.now(); const target=now-RENDER_DELAY;
   if(snaps.length<2) return latest;
   let a=snaps[0], b=snaps[snaps.length-1];
@@ -770,7 +771,12 @@ function interpView(){
   const span=Math.max(1,b.time-a.time); const alpha=Math.max(0,Math.min(1,(target-a.time)/span));
   const view=Object.assign({}, latest);   // structure/status/grid/flames from latest
   const am=new Map(a.snap.players.map(p=>[p.id,p])), bm=new Map(b.snap.players.map(p=>[p.id,p]));
-  view.players = latest.players.map(p=>{ const pa=am.get(p.id), pb=bm.get(p.id); if(pa&&pb) return Object.assign({},p,{x:pa.x+(pb.x-pa.x)*alpha, y:pa.y+(pb.y-pa.y)*alpha}); return p; });
+  view.players = latest.players.map(p=>{
+    if(p.id===myId) return p; // local: posición sin delay
+    const pa=am.get(p.id), pb=bm.get(p.id);
+    if(pa&&pb) return Object.assign({},p,{x:pa.x+(pb.x-pa.x)*alpha, y:pa.y+(pb.y-pa.y)*alpha});
+    return p;
+  });
   const ab=new Map(a.snap.bombs.map(x=>[x.id,x])), bb=new Map(b.snap.bombs.map(x=>[x.id,x]));
   view.bombs = latest.bombs.map(bm0=>{ const pa=ab.get(bm0.id), pb=bb.get(bm0.id); if(pa&&pb) return Object.assign({},bm0,{x:pa.x+(pb.x-pa.x)*alpha, y:pa.y+(pb.y-pa.y)*alpha}); return bm0; });
   if(a.snap.enemies.length===b.snap.enemies.length && a.snap.enemies.length===latest.enemies.length){

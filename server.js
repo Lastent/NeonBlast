@@ -11,7 +11,7 @@ const { WebSocketServer } = require('ws');
 const { Sim } = require('./sim');
 
 const PORT = process.env.PORT || 8080;
-const TICK_MS = 33;                 // ~30 Hz authoritative tick + broadcast
+const TICK_MS = 16;                 // ~60 Hz authoritative tick + broadcast
 const PUBLIC = path.join(__dirname, 'public');
 
 // ---------- tiny static file server ----------

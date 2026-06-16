@@ -7,8 +7,8 @@ Juego estilo Bomberman (IP original, estética synthwave/neón) para **hasta 4 j
 **Servidor autoritativo.** El servidor corre la única simulación; los clientes solo envían input y dibujan los *snapshots* que reciben.
 
 - `sim.js` — motor headless (CommonJS). Toda la lógica: laberinto, movimiento con colisión por eje + snapping, bombas (normal/remota/perforante + patada), explosiones encadenadas, llamas con dueño, power-ups, enemigos (solo coop), reglas de cada modo. Exporta `{ Sim, COLS, ROWS, TILE, COLORS, SPAWNS, WINS_TO_MATCH }`.
-- `server.js` — servidor HTTP (sirve `public/`) + `WebSocketServer` (misma `PORT`, default 8080). Salas por código de 4 letras, lobby, selección de modo, tick autoritativo ~30 Hz (`TICK_MS=33`) que hace `sim.tick()` y difunde `sim.snapshot()`. Migración de anfitrión al desconectarse. Exporta `{ server, wss, rooms }`.
-- `public/index.html` — cliente de un solo archivo: lobby, WebSocket, render con **interpolación** (`RENDER_DELAY≈90ms`) de jugadores/bombas/enemigos, HUD, banners y controles táctiles. Misma paleta neón.
+- `server.js` — servidor HTTP (sirve `public/`) + `WebSocketServer` (misma `PORT`, default 8080). Salas por código de 4 letras, lobby, selección de modo, tick autoritativo ~60 Hz (`TICK_MS=16`) que hace `sim.tick()` y difunde `sim.snapshot()`. Migración de anfitrión al desconectarse. Exporta `{ server, wss, rooms }`.
+- `public/index.html` — cliente de un solo archivo: lobby, WebSocket, render con **interpolación** (`RENDER_DELAY=50ms`) para jugadores/bombas/enemigos remotos; el jugador local se renderiza desde el snapshot más fresco (sin delay) para reducir input lag. HUD, banners y controles táctiles. Misma paleta neón.
 
 ### Flujo de estados del Sim
 `lobby → countdown (2s) → playing → (versus) roundover → countdown … / (coop) levelclear → countdown …`, y `gameover` al final. `snapshot()` manda `grid` como string (`#` muro, `x` blando, `.` piso) más jugadores/bombas/llamas/power-ups/enemigos en píxeles.
